@@ -115,6 +115,8 @@ class ARGUI:
         self.lights = False
         self.fork = False
 
+        self.HUD_minimap_position = [0, 0]
+
         self.cross_hair_up = False
         self.cross_hair_down = False
         self.cross_hair_right = False
@@ -151,7 +153,7 @@ class ARGUI:
         self.HUD_fork_up = ARPicture('content/hud/HUD_fork_up.png', cv2.IMREAD_UNCHANGED)
         self.HUD_fork_down = ARPicture('content/hud/HUD_fork_down.png', cv2.IMREAD_UNCHANGED)
         self.HUD_minimap = ARPicture('content/hud/HUD_minimap.png', cv2.IMREAD_UNCHANGED)
-        self.
+        self.HUD_minimap_cursor = ARPicture('content/hud/HUD_minimap.png', cv2.IMREAD_UNCHANGED)
 
         # Load Video
         self.video_01 = ARVideo('content/video/mars.mp4', 'content/video/mars.wav')
@@ -403,8 +405,15 @@ class ARGUI:
         modelview = glGetDouble(GL_MODELVIEW_MATRIX)
         glPopMatrix()
 
+        # UPRAVIT #
+        self.
+
+        ###########
+
+
         self.draw_picture(self.HUD_bg, modelview, self.win_width/2, self.win_height/2, 0, self.win_width/1920, 0)
         self.draw_picture(self.HUD_minimap, modelview, round(143/1920 * self.win_width), round(151/1080 * self.win_height), 0, self.win_width / 1920, 0)
+        self.draw_picture(self.HUD_minimap_cursor, modelview, round(143/1920 * self.win_width), round(151/1080 * self.win_height), 0, self.win_width / 1920, 0)
 
         if self.lights:
             self.draw_picture(self.HUD_lights_on, modelview, round(1230/1920 * self.win_width), round(1030/1080 * self.win_height), 0, self.win_width / 1920, 0)
