@@ -1,0 +1,10 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/patrik/catkin_ws/devel/lib/python2.7/dist-packages",
+        "/opt/ros/kinetic/lib/python2.7/dist-packages"
+    ],
+    "python.pythonPath": "/home/patrik/.virtualenvs/cv/bin/python",
+    "python.linting.pylintEnabled": true,
+    "python.linting.pep8Enabled": false,
+    "python.linting.enabled": true
+}
