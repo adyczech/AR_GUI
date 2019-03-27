@@ -18,6 +18,18 @@ from src.AR_Quiz import *
 from src.AR_Video import *
 from src.CreateFont import *
 
+
+import math
+import yaml
+import rospy
+from geometry_msgs.msg import PoseWithCovarianceStamped
+from mech_ros_msgs.msg import MarkerList
+from mech_ros_msgs.msg import Marker
+from std_msgs.msg import Bool
+from std_msgs.msg import Int8
+from nav_msgs.msg import Odometry
+
+
 WIDTH = 1280
 HEIGHT = 720
 
@@ -29,7 +41,7 @@ nasa_font_42_data = pickle.load(open(nasa_font_42, "rb"))
 
 # Markers
 # MARKER_SIZE = 80
-MARKER_SIZE = 140
+MARKER_SIZE = 111.8
 
 ASTRONAUT_ID = 4
 QUIZ_01_ID = 5
@@ -40,6 +52,16 @@ INVERSE_MATRIX = np.array([[1.0, 1.0, 1.0, 1.0],
                            [-1.0, -1.0, -1.0, -1.0],
                            [-1.0, -1.0, -1.0, -1.0],
                            [1.0, 1.0, 1.0, 1.0]])
+
+# Matrix for conversion from ROS frame to OpenCV in camera
+R_ROS_O_camera = np.array([[  0.0,  0.0,   1.0],
+ [  -1.0,   0.0,  0.0],
+ [  0.0,   -1.0,   0.0]])
+
+ # Matrix for conversion from OpenCV frame to ROS in marker
+R_O_ROS_marker = np.array([[  0.0,  1.0,   0.0],
+ [  0.0,   0.0,  1.0],
+ [  1.0,   0.0,   0.0]])
 
 # Load camera matrix and distortion coefficients
 with np.load('src/camCal_1280x720_MS.npz') as X:
@@ -52,6 +74,39 @@ detector_params.cornerRefinementMethod = 1
 detector_params.adaptiveThreshWinSizeStep = 5
 detector_params.minMarkerPerimeterRate = 0.04
 detector_params.cornerRefinementMaxIterations = 30
+
+
+### Markers in mechLAB
+## Generate dictionary
+my_dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50)
+
+## Define Aruco Detector Params
+arucoParams = cv2.aruco.DetectorParameters_create()
+
+arucoParams.adaptiveThreshConstant = 7
+arucoParams.adaptiveThreshWinSizeMax = 35  # default 23
+arucoParams.adaptiveThreshWinSizeMin = 3  # default 3
+arucoParams.adaptiveThreshWinSizeStep = 8  # default 10
+
+arucoParams.cornerRefinementMethod = 1
+arucoParams.cornerRefinementMaxIterations = 30
+arucoParams.cornerRefinementMinAccuracy = 0.01
+arucoParams.cornerRefinementWinSize = 5
+
+arucoParams.errorCorrectionRate = 0.6
+arucoParams.minCornerDistanceRate = 0.05  # min distance between marker corners,
+# min. distance[pix] = Perimeter*minCornerDistanceRate
+arucoParams.minMarkerDistanceRate = 0.05  # min distance between corners of different markers,
+# min. distance[pix] = Perimeter(smaller one)*minMarkerDistanceRate
+arucoParams.minMarkerPerimeterRate = 0.1
+arucoParams.maxMarkerPerimeterRate = 4.0
+arucoParams.minOtsuStdDev = 5.0
+arucoParams.perspectiveRemoveIgnoredMarginPerCell = 0.13
+arucoParams.perspectiveRemovePixelPerCell = 8
+arucoParams.polygonalApproxAccuracyRate = 0.01
+arucoParams.markerBorderBits = 1
+arucoParams.maxErroneousBitsInBorderRate = 0.04
+arucoParams.minDistanceToBorder = 3
 
 aspect = (WIDTH * mtx[1, 1]) / (HEIGHT * mtx[0, 0])
 fovy = 2 * np.arctan(0.5 * HEIGHT / mtx[1, 1]) * 180 / np.pi
@@ -86,10 +141,12 @@ class StreamCapture:
         while True:
             ret, frame = self.cap.read()
             if ret:
-                self.current_frame = np.fliplr(frame)
+                # self.current_frame = np.fliplr(frame)
+                self.current_frame = frame
+                self.time = rospy.Time.now()
 
     def get_current_frame(self):
-        return self.current_frame
+        return self.current_frame, self.time
 
 
 class ARGUI:
@@ -114,6 +171,7 @@ class ARGUI:
 
         self.lights = False
         self.fork = False
+        self.voltage = 0
 
         self.HUD_minimap_position = [0, 0]
 
@@ -124,6 +182,27 @@ class ARGUI:
 
         self.fire = False
         self.queue_of_death = []  # [object, dst]
+
+        # ROS parameters
+        marker_detector_topic = "/markers"
+        servo_topic = "/cmd_servo"
+        led_topic = "/cmd_led"
+        odom_topic = "/odometry/filtered"
+        volt_topic = "/volt_battery"
+        self.frame_id = "front_camera_link"
+
+        # Init subscribers and publishers
+        self.marker_publisher = rospy.Publisher(marker_detector_topic, MarkerList,queue_size=10)
+        self.servo_publisher = rospy.Publisher(servo_topic, Bool,queue_size=2)
+        self.led_publisher = rospy.Publisher(led_topic, Bool,queue_size=2)
+        odom_subscriber = rospy.Subscriber(odom_topic, Odometry, self.odom_cb)
+        volt_subscriber = rospy.Subscriber(volt_topic, Int8, self.volt_cb)
+
+        # Init Pose and velocity info
+        self.x = 0
+        self.y = 0
+        self.velocity = 0
+        self.yaw = 0
 
     def init_gl(self):
         print("init")
@@ -170,17 +249,65 @@ class ARGUI:
         # Assign texture
         self.texture_background = glGenTextures(1)  # generate texture names
 
-        self.image = self.stream.get_current_frame()
+        self.image,_ = self.stream.get_current_frame()
         self.init_background(self.image)
-
+        
     def glfw_main_loop(self):
         while not glfw.window_should_close(self.main_window):
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-            self.image = self.stream.get_current_frame()
+            self.image, time = self.stream.get_current_frame()
             self.draw_background(self.image)
 
-            ids, rvecs, tvecs = self.find_marker(self.image)
+            ids, rvecs, tvecs, markerIds, markerCorners, my_rvecs, my_tvecs = self.find_marker(self.image)
+
+            if len(markerCorners) > 0:
+                # Publish pose estimates to ROS network
+                aruco_MarkerList = MarkerList()
+                aruco_MarkerList.header.stamp = time
+                aruco_MarkerList.header.frame_id = self.frame_id
+                if markerIds != None:
+                    for i in range(markerIds.size):
+
+                        # Calculate surface area in pixels
+                        surface = cv2.contourArea(markerCorners[i], False)
+                        
+                        # Fill MarkerList with each marker
+                        aruco_Marker = Marker()
+                        aruco_Marker.id = str(markerIds[i,0])
+                        aruco_Marker.surface = surface
+
+                        # Prevedeni rodrigues vectoru na rotacni matici
+                        Rmat = np.zeros(shape=(3,3))
+                        cv2.Rodrigues(my_rvecs[i,0],Rmat)
+
+                        # Convert from Opencv frame to ROS frame in camera
+                        R = np.dot(R_ROS_O_camera, Rmat)
+
+                        # Convert inverted matrix from Opencv frame to ROS frame in marker
+                        R = np.dot(R, R_O_ROS_marker)
+
+                        # Convert from Rotation matrix to Euler angles
+                        Euler = self.rotationMatrixToEulerAngles(R.T) # rotace z markeru do kamery
+
+                        # Fill Marker orientation vector
+                        aruco_Marker.pose.orientation.r = Euler[0]
+                        aruco_Marker.pose.orientation.p = Euler[1]
+                        aruco_Marker.pose.orientation.y = Euler[2]
+
+
+                        # Coordinate vector of camera position from marker in camera coordinate frame
+                        aruco_Marker.pose.position.x = -my_tvecs[i,0,2]
+                        aruco_Marker.pose.position.y = my_tvecs[i,0,0]
+                        aruco_Marker.pose.position.z = -my_tvecs[i,0,1]
+
+                        ## For compatibility with gazebo
+                        aruco_Marker.header.stamp = time
+
+                        # All coordinates are in marker frame
+                        aruco_MarkerList.markers.append(aruco_Marker)
+
+                    self.marker_publisher.publish(aruco_MarkerList)
 
             self.draw_AR(ids, rvecs, tvecs)
             self.draw_HUD()
@@ -198,9 +325,17 @@ class ARGUI:
     def find_marker(self, image):
         rvecs = None
         tvecs = None
+        my_rvecs = None
+        my_tvecs = None
+        markerIds = np.array([])
+        markerCorners = np.array([])
+
 
         # image = cv2.resize(image, (640, 360), interpolation=cv2.INTER_AREA)
-        corners, ids, rejected = cv2.aruco.detectMarkers(image, dictionary, parameters=detector_params)
+        # corners, ids, rejected = cv2.aruco.detectMarkers(image, dictionary, parameters=detector_params)
+        corners, ids, rejected = cv2.aruco.detectMarkers(image, my_dictionary, parameters=arucoParams, cameraMatrix= mtx, distCoeff= dist)
+        markerIds = ids
+        markerCorners = corners
         # corners = np.dot(corners, 2)
 
         # <editor-fold desc = "Probability" >
@@ -256,6 +391,8 @@ class ARGUI:
 
             if not isinstance(ids, type(None)):
                 rvecs, tvecs, origin = cv2.aruco.estimatePoseSingleMarkers(corners, MARKER_SIZE, mtx, dist)
+                my_rvecs = rvecs
+                my_tvecs = tvecs/1000
                 rvecs = rvecs[:, 0, :]
                 tvecs = tvecs[:, 0, :]
                 ids = ids[:, 0]
@@ -274,7 +411,7 @@ class ARGUI:
             rvecs = rvecs[inds]
             ids = ids[inds]
 
-        return ids, rvecs, tvecs
+        return ids, rvecs, tvecs, markerIds, markerCorners, my_rvecs, my_tvecs
 
     def draw_AR(self, ids, rvecs, tvecs):
         if not isinstance(ids, type(None)):
@@ -517,9 +654,15 @@ class ARGUI:
     def key_callback(self, window, key, scancode, action, mods):
         if key == glfw.KEY_X and action == glfw.PRESS:
             self.lights = not self.lights
+            Light = Bool()
+            Light.data = self.lights
+            self.led_publisher.publish(Light)
 
         elif key == glfw.KEY_C and action == glfw.PRESS:
             self.fork = not self.fork
+            Fork = Bool()
+            Fork.data = self.fork
+            self.servo_publisher.publish(Fork)
 
         elif key == glfw.KEY_K and action == glfw.PRESS:
             self.fire = True
@@ -548,6 +691,46 @@ class ARGUI:
         elif key == glfw.KEY_I and action == glfw.RELEASE:
             self.cross_hair_left = False
 
+    def getYaw(self, q):        
+        yaw = math.atan2(2.0 * (q.z * q.w + q.x * q.y) , - 1.0 + 2.0 * (q.w * q.w + q.x * q.x))
+        yaw = round(yaw*180/math.pi)
+        return yaw
+
+    def odom_cb(self,odom):
+        self.x = odom.pose.pose.position.x
+        self.y = odom.pose.pose.position.y
+        self.yaw = self.getYaw(odom.pose.pose.orientation)
+        self.velocity = round(odom.twist.twist.linear.x*100)
+
+    def volt_cb(self,volt):
+        voltage = (volt.data + 335.0)/100
+        self.voltage = voltage
+
+    def rotationMatrixToEulerAngles(self, M, cy_thresh=None):
+        # cy_thresh : None or scalar, optional
+        #    threshold below which to give up on straightforward arctan for
+        #    estimating x rotation.  If None (default), estimate from
+        #    precision of input. Source : http://www.graphicsgems.org/
+        _FLOAT_EPS_4 = np.finfo(float).eps * 4.0
+        if cy_thresh is None:
+            try:
+                cy_thresh = np.finfo(M.dtype).eps * 4
+            except ValueError:
+                cy_thresh = _FLOAT_EPS_4
+        r11, r12, r13, r21, r22, r23, r31, r32, r33 = M.flat
+        # cy: sqrt((cos(y)*cos(z))**2 + (cos(x)*cos(y))**2)
+        cy = math.sqrt(r33*r33 + r23*r23)
+        if cy > cy_thresh: # cos(y) not close to zero, standard form
+            z = math.atan2(-r12,  r11) # atan2(cos(y)*sin(z), cos(y)*cos(z))
+            y = math.atan2(r13,  cy) # atan2(sin(y), cy)
+            x = math.atan2(-r23, r33) # atan2(cos(y)*sin(x), cos(x)*cos(y))
+        else: # cos(y) (close to) zero, so x -> 0.0 (see above)
+            # so r21 -> sin(z), r22 -> cos(z) and
+            z = math.atan2(r21,  r22)
+            y = math.atan2(r13,  cy) # atan2(sin(y), cy)
+            x = 0.0
+        return [x, y, z]
+
     def main(self):
         # setup and run OpenGL
         glfw.init()
@@ -564,6 +747,6 @@ class ARGUI:
         self.init_gl()
         self.glfw_main_loop()
 
-
+rospy.init_node('aruco_detect', anonymous=True)
 app = ARGUI()
 app.main()
