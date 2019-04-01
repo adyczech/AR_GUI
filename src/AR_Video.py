@@ -18,10 +18,33 @@ class ARVideo:
         self.music = sound
         self.is_displayed = False
         self.last_draw_time = time.time()
+        self.mute = False
+        self.ix = self.video.get(cv2.CAP_PROP_FRAME_WIDTH)
+        self.iy = self.video.get(cv2.CAP_PROP_FRAME_HEIGHT)
+
+        self.init_video_texture()
+
         if not isinstance(self.music, type(None)):
             mixer.pre_init(44100, -16, 1, 512)
             mixer.init()
             self.sound = mixer.Sound(sound)
+
+    def init_video_texture(self):
+        ret, image = self.video.read()
+
+        # Convert image to OpenGL texture format
+        vid_image = Image.fromarray(image)
+        vid_image = vid_image.tobytes("raw", "BGRX", 0, -1)
+
+        # create video texture
+        glEnable(GL_TEXTURE_2D)
+        glBindTexture(GL_TEXTURE_2D, self.gl_texture)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, self.ix, self.iy, 0, GL_RGBA, GL_UNSIGNED_BYTE, vid_image)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glBindTexture(GL_TEXTURE_2D, 0)
+
+        self.video.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
     def start(self):
         Thread(target=self.play, args=(), daemon=True).start()
@@ -33,11 +56,15 @@ class ARVideo:
         frame_counter = 0
         if not isinstance(self.music, type(None)):
             self.sound.play()
+        tic = time.time()
         while True:
-            if not self.is_displayed and (time.time() - self.last_draw_time >= 0.2):
+            toc = time.time()
+            if not self.is_displayed and (toc - self.last_draw_time >= 0.2):
                 self.sound.set_volume(0)
-            else:
+                self.mute = True
+            elif self.is_displayed and self.mute:
                 self.sound.set_volume(1)
+                self.mute = False
             self.is_displayed = False
 
             if frame_counter == nof:
@@ -47,10 +74,11 @@ class ARVideo:
 
             ret, self.cur_frame = self.video.read()
             frame_counter += 1
-            time.sleep(1/(fps*1.5))
 
-    def get_current_frame(self):
-        return self.cur_frame
+            delay = 1/fps - (time.time() - toc)
+
+            if delay > 0 and time.time()-tic < fps*frame_counter:
+                time.sleep(delay*0.9)
 
     def draw_video(self, view_matrix, width, height):
         if not self.isPlaying:
@@ -58,30 +86,19 @@ class ARVideo:
 
         self.is_displayed = True
         self.last_draw_time = time.time()
-        glMatrixMode(GL_MODELVIEW)
-        glLoadIdentity()
 
-        frame = self.get_current_frame()
-
-        if np.size(frame) == 1:
+        if np.size(self.cur_frame) == 1:
             return
 
-        # convert image to OpenGL texture format
-        frame = Image.fromarray(frame)
-        ix = frame.size[0]
-        iy = frame.size[1]
-        frame = frame.tobytes("raw", "BGRX", 0, -1)
+        glMatrixMode(GL_MODELVIEW)
+        # glLoadIdentity()
+        glLoadMatrixd(view_matrix)
 
-        # create background texture
         glEnable(GL_TEXTURE_2D)
         glBindTexture(GL_TEXTURE_2D, self.gl_texture)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ix, iy, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                     frame)  # specify a two-dimensional texture image
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)  # set texture parameters(target, parameter name, parameter value)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, self.ix, self.iy, GL_BGR, GL_UNSIGNED_BYTE, np.flipud(self.cur_frame))
 
-        glPushMatrix()
-        glLoadMatrixd(view_matrix)
+        # Draw background
         glBegin(GL_QUADS)
         glTexCoord2f(0, 0)  # set the current texture coordinates
         glVertex3f(-width / 2, -height / 2, 0.0)
@@ -92,5 +109,4 @@ class ARVideo:
         glTexCoord2f(1, 0)
         glVertex3f(width / 2, -height / 2, 0.0)
         glEnd()
-        glPopMatrix()
         glDisable(GL_TEXTURE_2D)

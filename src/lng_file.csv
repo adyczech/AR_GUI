@@ -1,18 +1,11 @@
-﻿Info;Info
-Domů;Home
-Language;Jazyk
-Použití kódů:\n\n  - 0 \t\tPořízení fotografie\n\n  - 2, 3 \t\tKreslení v prostoru\n\n  - 4 \t\tMazání\n\n  - Zbytek \tObjevte sami;Usage of markers:\n\n  - 0 \t\tTakes a picture\n\n  - 2, 3 \t\tDraw in space\n\n  - 4 \t\tErase\n\n  - Rest \t\tDiscover it on your own
-Zadejte vaši e-mailovou adresu.;Enter your e-mail address.
-Neplatná e-mailová adresa.;Invalid e-mail address.
-Fotokoutek s rozšířenou realitou;AR Photo Booth
-Užijte si rozšířenou realitu (Augmented Reality).\n\n Pomocí speciálních kódů umístěných u exponátu můžete například kreslit, prozkoumat planety Sluneční soustavy nebo se setkat s hrdiny akčních filmů.\n\n Díky jednomu z kódů si své zážitky vyfoťte a pošlete si je na e-mail.\n\nKamera umístěná nad promítací plochou snímá obraz a hledá v něm zmíněné kódy. Na základě analýzy obrazu pak určí polohu kódů a jejich natočení v prostoru. Právě v tomto místě se následně zobrazí požadovaný objekt.\n\nVybírat můžete ze dvou herních režimů. V režimu označeném jako Volná zábava objevujte, co jednotlivé kódy umí, a přitom si udělejte fotku na památku. V druhém režimu si zahrajte jednoduchou hru, u které si alespoň trošku protáhnete tělo.	You are standing at the exhibit showing elements of Augmented Reality (AR).\n\nUsing the markers located at the exhibit, you can draw in space, explore planets of Solar System, meet your favourite Sci-Fi heroes and a lot more.\n\nFurthermore you can take a photo of yourself and send this photo to your e-mail.\n\nA camera located above the projection screen captures an image and an algorythm finds markes in it. It is possible to determine position and orientation of markers in space using image analysis. Based on this data, the required content can be projected on this place.\n\nYou can choose from two game modes. In the Fun mode, you can explore what individual markers can do and also take a picture of yourself. In the second mode, you can play a simple game and stretch your body.
-Namiřte kód na kameru před vámi.;Point marker at the camera in front of you.
-Posbíráno: ;Collected: 
-Příliš mnoho odpadu.;Too much waste.
-Zkusit znovu?;Try again?
-Volná zábava;Fun mode
-Úklid oceánu;Ocean clean up
-Znečištění moří a oceánů odpady představuje v současné době přírodní katastrofu obřích rozměrů. Jde o celosvětový problém, se kterým se můžeme setkat nejen v lidnatých částech světa, ale také na těch nejodlehlejších místech.\nPřibližně 89 % odpadu tvoří plastové výrobky jako jsou tašky, láhve, rybářské sítě a vlasce, bóje, obaly nebo mikroplasty. Mimo ně tam najdete plechovky, oblečení, cigaretové nedopalky a další.\nPodle výzkumů do oceánů ročně doputuje  4,8 až 12,7 milionů tun plastového odpadu, což představuje 152 až 402 kg, které proudí každou sekundu do moří a oceánů. Až 70 % tohoto odpadu se potopí ke dnu. Odhaduje se, že se v mořích a oceánech nachází až 270 tisíc tun plastového odpadu skládajícího se z 5,25 biliony částí.\nPlastový odpad představuje velké riziko hlavně pro mořské živočichy, kteří často uhynou v důsledku jeho pozření, nebo se do odpadků zamotají.\nV současné době vzniká řada projektů za účelem snížení produkce plastového odpadu, zvýšení recyklace a čištění moří. Zkuste si i vy vyčistit část oceánu.	Pollution of seas and oceans by waste is currently a natural disaster of giant dimensions. It is a global problem that we can encounter not only in the populated areas of the world but also in the most remote places.\nApproximately 89 % of waste is made up of plastic products such as plastic bags, bottles, fishing nets and lines, buoys, packaging, microplastics. The rests are beverage cans, clothes, cigarette butts and other.\nAccording to research, 4.8 to 12.7 million tons of plastic waste gets to the oceans every year, representing 152 to 402 kg of waste flowing into the seas and oceans every second. Of which up to 70% of the waste sinks to the bottom. It is estimated that there are up to 270,000 tons of floating plastic waste in the seas and oceans consisting of 5.25 trillion pieces.\nPlastic waste poses a major risk mainly to marine animals that often die as a result of swallowing or entanglement in marine debris.\nA number of projects are currently underway to reduce the production of plastic waste, increase recycling and to clean the seas. Try to clean up some of the ocean on your own.
-Konec hry\n\nVaše skóre:;Game over\n\nYour score:
-a;a
-Ve světových oceánech: ;In global ocean: 
+﻿# Quiz 1
+Kolik měsíců má planeta Mars?;How many moons does the planet Mars have?#0
+a)0;a)0#1
+b)2;b)2#2
+c)3;c)3#3
+
+# Quiz 2
+Jak se nazývá nejvyšší vrchol\nplanety Mars?;What is the the highest\npeak on the planet Mars?#4
+a)Olympus Mons;a)Olympus Mons#5
+b)Mare Tranquillitatis;b)Mare Tranquillitatis#6
+c)Schiaparelli;c)Schiaparelli#7

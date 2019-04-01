@@ -4,6 +4,7 @@ from OpenGL.GLU import *
 from OpenGL.GL import *
 import cv2
 from src.AR_Picture import *
+from src.CreateFont import *
 
 
 class AnswerField:
@@ -25,29 +26,39 @@ class ARQuiz:
         self.answered_correctly = False
         self.choice = 0
 
-        self.question = ARPicture(question, cv2.IMREAD_UNCHANGED)
-        self.answer_1 = ARPicture(answer1, cv2.IMREAD_UNCHANGED)
-        self.answer_2 = ARPicture(answer2, cv2.IMREAD_UNCHANGED)
-        self.answer_3 = ARPicture(answer3, cv2.IMREAD_UNCHANGED)
+        self.question_field = ARPicture('content/quiz/question_reg.png', cv2.IMREAD_UNCHANGED)
+        self.question = question.replace('\\n', '\n').replace('\\t', '\t')
+        self.answer_1 = answer1.replace('\\n', '\n').replace('\\t', '\t')
+        self.answer_2 = answer2.replace('\\n', '\n').replace('\\t', '\t')
+        self.answer_3 = answer3.replace('\\n', '\n').replace('\\t', '\t')
+
+        if "\n" in self.question:
+            self.question_realign = True
+        else:
+            self.question_realign = False
 
         self.answer_field_1 = AnswerField()
         self.answer_field_2 = AnswerField()
         self.answer_field_3 = AnswerField()
 
+        self.font = self.parent.nasa_font_12
+
     def draw_quiz(self, view_matrix):
-        self.question.set_modelview_matrix(view_matrix, 0, self.answer_field_1.rg.iy + self.question.iy/2, 0)
-        self.question.draw()
+        self.question_field.set_modelview_matrix(view_matrix, 0, self.answer_field_1.rg.iy + self.question_field.iy/2, 0)
+        self.question_field.draw()
 
         self.draw_picture(self.answer_field_1, view_matrix, 0, self.answer_field_1.rg.iy / 2, 0, hitable=True, index=1)
         self.draw_picture(self.answer_field_2, view_matrix, 0, -self.answer_field_2.rg.iy / 2, 0, hitable=True, index=2)
         self.draw_picture(self.answer_field_3, view_matrix, 0, -1.5 * self.answer_field_3.rg.iy, 0, hitable=True, index=3)
 
-        self.answer_1.set_modelview_matrix(view_matrix, 0, self.answer_field_1.rg.iy / 2, 3)
-        self.answer_1.draw()
-        self.answer_2.set_modelview_matrix(view_matrix, 0, -self.answer_field_1.rg.iy / 2, 3)
-        self.answer_2.draw()
-        self.answer_3.set_modelview_matrix(view_matrix, 0, -1.5 * self.answer_field_1.rg.iy, 3)
-        self.answer_3.draw()
+        if self.question_realign:
+            CreateFont.glPrint(self.font, -425, self.answer_field_1.rg.iy + self.question_field.iy/2 + 18, 5, self.question, view_matrix, False)
+        else:
+            CreateFont.glPrint(self.font, -475, self.answer_field_1.rg.iy + self.question_field.iy / 2 - 18, 5,
+                               self.question, view_matrix, False)
+        CreateFont.glPrint(self.font, -335, self.answer_field_1.rg.iy / 2 - 18, 5, self.answer_1, view_matrix, False)
+        CreateFont.glPrint(self.font, -335, -self.answer_field_1.rg.iy / 2 - 18, 5, self.answer_2, view_matrix, False)
+        CreateFont.glPrint(self.font, -335, -1.5 * self.answer_field_1.rg.iy - 18, 5, self.answer_3, view_matrix, False)
 
     def collision_detection(self, BB, model_mat, scale):
         ray_orig = np.array([[0], [0], [0]])
@@ -133,42 +144,13 @@ class ARQuiz:
 
         picture.draw(modelview_mat)
 
-        # if hitable:
-        #     if self.choice == 0:
-        #         model_mat = np.transpose(modelview_mat)
-        #         hit, dst = self.collision_detection(picture.rg.BB, model_mat, scale * scale)
-        #         if hit:
-        #             if self.parent.fire:
-        #                 self.parent.fire = False
-        #                 self.choice = index
-        #                 if index == self.correct_answer:
-        #                     picture = picture.true
-        #                     self.answered_correctly = True
-        #                 else:
-        #                     picture = picture.false
-        #             else:
-        #                 picture = picture.rg
-        #         else:
-        #             picture = picture.over
-        #     else:
-        #         if index == self.correct_answer:
-        #             picture = picture.true
-        #         elif index == self.choice and self.choice != self.correct_answer:
-        #             picture = picture.false
-        #         elif index != self.choice and index != self.correct_answer:
-        #             picture = picture.rg
-        # else:
-        #     picture = picture
-        #
-        # if picture.blend:
-        #     glEnable(GL_BLEND)
-        #     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        #
-        # glEnable(GL_TEXTURE_2D)
-        # glCallList(picture.gl_list)
-        # glDisable(GL_TEXTURE_2D)
-        #
-        # if picture.blend:
-        #     glDisable(GL_BLEND)
-        #
-        # glPopMatrix()
+    def change_labels(self, question, answer1, answer2, answer3):
+        self.question = question.replace('\\n', '\n').replace('\\t', '\t')
+        self.answer_1 = answer1.replace('\\n', '\n').replace('\\t', '\t')
+        self.answer_2 = answer2.replace('\\n', '\n').replace('\\t', '\t')
+        self.answer_3 = answer3.replace('\\n', '\n').replace('\\t', '\t')
+
+        if "\n" in self.question:
+            self.question_realign = True
+        else:
+            self.question_realign = False

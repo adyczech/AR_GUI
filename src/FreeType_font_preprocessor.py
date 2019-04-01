@@ -36,7 +36,7 @@ def make_dlist(ft, ch):
 
 
 ft = Face(FACENAME)
-ft.set_char_size(PIXEL_HEIGHT * 64)
+ft.set_char_size(height=PIXEL_HEIGHT * 64, vres=90)
 for i in range(383):
     make_dlist(ft, i)
     print(i)

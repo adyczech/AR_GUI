@@ -15,7 +15,7 @@ class CreateFont:
         # Try to obtain the FreeType font
         try:
             ft = Face(facename)
-            ft.set_char_size(pixel_height * 64)
+            ft.set_char_size(height=pixel_height * 64, vres=90)
         except ValueError:
             print("Unable to locate true type font '%s'")
         # Here we ask opengl to allocate resources for
@@ -134,13 +134,14 @@ class CreateFont:
     def get_text_size(self, string):
         return self.font.getsize(string)
 
-    def glPrint(self, x, y, string):
+    def glPrint(self, x, y, z, string, viewmatrix, HUD):
         """
         # ///Much like Nehe's glPrint function, but modified to work
         # ///with freetype fonts.
         """
         # We want a coordinate system where things coresponding to window pixels.
-        self.pushScreenCoordinateMatrix()
+        if HUD:
+            self.pushScreenCoordinateMatrix()
 
         # //We make the height about 1.5* that of
         h = float(self.m_font_height) / 0.75
@@ -169,7 +170,10 @@ class CreateFont:
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glListBase(self.m_list_base)
-        modelview_matrix = glGetFloatv(GL_MODELVIEW_MATRIX)
+        if HUD:
+            modelview_matrix = glGetFloatv(GL_MODELVIEW_MATRIX)
+        else:
+            modelview_matrix = viewmatrix
         # //This is where the text display actually happens.
         # //For each line of text we reset the modelview matrix
         # //so that the line's text will start in the correct position.
@@ -181,8 +185,9 @@ class CreateFont:
         for i in range(len(lines)):
             glPushMatrix()
             glLoadIdentity()
-            glTranslatef(x, y - h * i, 0)
-            glMultMatrixf(modelview_matrix)
+            glLoadMatrixd(modelview_matrix)
+            glTranslatef(x, y - h * i, z)
+            # glMultMatrixf(modelview_matrix)
             # //  The commented out raster position stuff can be useful if you need to
             # //  know the length of the text that you are creating.
             # //  If you decide to use it make sure to also uncomment the glBitmap command
@@ -197,7 +202,8 @@ class CreateFont:
             # //        float len=x-rpos[0];
             glPopMatrix()
         glPopAttrib()
-        self.pop_projection_matrix()
+        if HUD:
+            self.pop_projection_matrix()
         return
 
     def release(self):

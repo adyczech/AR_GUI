@@ -71,7 +71,7 @@ class StreamCapture:
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
         self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
         self.cap.set(cv2.CAP_PROP_FOCUS, 0)
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         # self.cap.set(cv2.CAP_PROP_SETTINGS, 1)
         if not self.cap.isOpened():
             print("Cannot open stream")
@@ -101,6 +101,8 @@ class ARGUI:
         self.win_width = WIDTH
         self.win_height = HEIGHT
 
+        self.language = 0  # 0 - cs, 1 - eng
+
         self.cross_hair_x = self.win_width / 2
         self.cross_hair_y = self.win_height / 2
 
@@ -115,7 +117,9 @@ class ARGUI:
         self.lights = False
         self.fork = False
 
-        self.HUD_minimap_position = [0, 0]
+        self.HUD_minimap_position = np.array([0, 0])
+        self.HUD_minimap_rotation = 90
+        self.HUD_minimap_resolution = 39.2857142  # [px/m] 44px/1.12m
 
         self.cross_hair_up = False
         self.cross_hair_down = False
@@ -124,6 +128,10 @@ class ARGUI:
 
         self.fire = False
         self.queue_of_death = []  # [object, dst]
+
+        self.tic = time.time()
+        self.toc = time.time()
+        self.frames = 0
 
     def init_gl(self):
         print("init")
@@ -140,9 +148,13 @@ class ARGUI:
         gluPerspective(fovy, aspect, 0.1,
                        500.0 * MARKER_SIZE)  # field of view, aspect ration, distance to near clipping plane, distance to far clipping plane
 
+        # Build Font
+        self.nasa_font_12 = CreateFont("src/Nasalization_Regular.ttf", 36, nasa_font_12_data)
+        self.nasa_font_42 = CreateFont("src/Nasalization_Bold.ttf", 116, nasa_font_42_data)
+
         # Load 3D models
         # self.astronaut = OBJ('content/model/astronaut5/astronaut.obj')
-        # self.astronaut = OBJ('content/model/med_astronaut/med_astronaut.obj')
+        # s elf.astronaut = OBJ('content/model/med_astronaut/med_astronaut.obj')
         self.astronaut = OBJ('content/model/humanoid-robot/source/robot.obj')
 
         # Load HUD images
@@ -153,19 +165,14 @@ class ARGUI:
         self.HUD_fork_up = ARPicture('content/hud/HUD_fork_up.png', cv2.IMREAD_UNCHANGED)
         self.HUD_fork_down = ARPicture('content/hud/HUD_fork_down.png', cv2.IMREAD_UNCHANGED)
         self.HUD_minimap = ARPicture('content/hud/HUD_minimap.png', cv2.IMREAD_UNCHANGED)
-        self.HUD_minimap_cursor = ARPicture('content/hud/HUD_minimap.png', cv2.IMREAD_UNCHANGED)
+        self.HUD_minimap_cursor = ARPicture('content/hud/HUD_minimap_cursor.png', cv2.IMREAD_UNCHANGED)
 
         # Load Video
         self.video_01 = ARVideo('content/video/mars.mp4', 'content/video/mars.wav')
 
         # Load quizzes
-        self.quiz_01 = ARQuiz(self, 'content/quiz/1_0.png', 'content/quiz/1_a.png', 'content/quiz/1_b.png', 'content/quiz/1_c.png', 2)
-        self.quiz_02 = ARQuiz(self, 'content/quiz/2_0.png', 'content/quiz/2_a.png', 'content/quiz/2_b.png',
-                              'content/quiz/2_c.png', 1)
-
-        # Build Font
-        self.nasa_font_12 = CreateFont("src/Nasalization_Regular.ttf", 34, nasa_font_12_data)  # 34
-        self.nasa_font_42 = CreateFont("src/Nasalization_Bold.ttf", 116, nasa_font_42_data)
+        self.quiz_01 = ARQuiz(self, labels.txt[0], labels.txt[1], labels.txt[2], labels.txt[3], 2)
+        self.quiz_02 = ARQuiz(self, labels.txt[4], labels.txt[5], labels.txt[6], labels.txt[7], 1)
 
         # Assign texture
         self.texture_background = glGenTextures(1)  # generate texture names
@@ -192,6 +199,13 @@ class ARGUI:
             glfw.swap_buffers(self.main_window)
             glfw.poll_events()
 
+            self.frames += 1
+
+            if time.time() - self.toc >= 2:
+                self.toc = time.time()
+                print(self.frames/2)
+                self.frames = 0
+
         glfw.destroy_window(self.main_window)
         glfw.terminate()
 
@@ -200,7 +214,7 @@ class ARGUI:
         tvecs = None
 
         # image = cv2.resize(image, (640, 360), interpolation=cv2.INTER_AREA)
-        corners, ids, rejected = cv2.aruco.detectMarkers(image, dictionary, parameters=detector_params)
+        corners, ids, rejected = cv2.aruco.detectMarkers(image, dictionary, parameters=detector_params, cameraMatrix=mtx, distCoeff=dist)
         # corners = np.dot(corners, 2)
 
         # <editor-fold desc = "Probability" >
@@ -292,6 +306,11 @@ class ARGUI:
                 elif VIDEO_01_ID == ids[i]:
                     view_matrix = self.get_view_matrix(rvecs[i], tvecs[i])
                     self.video_01.draw_video(view_matrix, 640, 480)
+                elif 0 == ids[i]:
+                    view_matrix = self.get_view_matrix(rvecs[i], tvecs[i])
+                    glColor3fv(self.font_color)
+                    CreateFont.glPrint(self.nasa_font_12, 0, 0, -10, "3.6 V", view_matrix, False)
+                    glColor3f(1.0, 1.0, 1.0)
 
     def get_view_matrix(self, rvecs, tvecs):
         model_rvecs = rvecs
@@ -354,8 +373,7 @@ class ARGUI:
 
     def draw_background(self, image):
         glEnable(GL_TEXTURE_2D)
-        glBindTexture(GL_TEXTURE_2D,
-                      self.texture_background)  # bind a named texture to a texturing target (target, texture)
+        glBindTexture(GL_TEXTURE_2D, self.texture_background)
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, WIDTH, HEIGHT, GL_BGR, GL_UNSIGNED_BYTE, np.flipud(image))
 
         glMatrixMode(GL_MODELVIEW)
@@ -406,14 +424,14 @@ class ARGUI:
         glPopMatrix()
 
         # UPRAVIT #
-        self.
+        self.HUD_minimap_position = np.array([2, -1]) * self.HUD_minimap_resolution * self.win_width / 1920
 
         ###########
 
-
         self.draw_picture(self.HUD_bg, modelview, self.win_width/2, self.win_height/2, 0, self.win_width/1920, 0)
         self.draw_picture(self.HUD_minimap, modelview, round(143/1920 * self.win_width), round(151/1080 * self.win_height), 0, self.win_width / 1920, 0)
-        self.draw_picture(self.HUD_minimap_cursor, modelview, round(143/1920 * self.win_width), round(151/1080 * self.win_height), 0, self.win_width / 1920, 0)
+        self.draw_picture(self.HUD_minimap_cursor, modelview, round(20/1920 * self.win_width) + self.HUD_minimap_position[0],
+                          round(228/1080 * self.win_height) + self.HUD_minimap_position[1], 0, self.win_width / 1920, self.HUD_minimap_rotation)
 
         if self.lights:
             self.draw_picture(self.HUD_lights_on, modelview, round(1230/1920 * self.win_width), round(1030/1080 * self.win_height), 0, self.win_width / 1920, 0)
@@ -427,9 +445,9 @@ class ARGUI:
 
         # Draw HUD texts
         glColor3fv(self.font_color)
-        CreateFont.glPrint(self.nasa_font_12, round(0.3375*self.win_width), round(0.9343*self.win_height), "3.6 V")
-        CreateFont.glPrint(self.nasa_font_42, round(1671/1920 * self.win_width), round(128 / 1080 * self.win_height), "20")
-        CreateFont.glPrint(self.nasa_font_12, round(960 / 1920 * self.win_width), round(1009 / 1080 * self.win_height), "115 °")
+        CreateFont.glPrint(self.nasa_font_12, round(0.3375*self.win_width), round(0.9343*self.win_height), 0, "3.6 V", None, True)
+        CreateFont.glPrint(self.nasa_font_42, round(1671/1920 * self.win_width), round(128 / 1080 * self.win_height), 0, "20", None, True)
+        CreateFont.glPrint(self.nasa_font_12, round(960 / 1920 * self.win_width), round(1009 / 1080 * self.win_height), 0, "115 °", None, True)
         glColor3f(1.0, 1.0, 1.0)
 
         # Draw cursor
@@ -492,6 +510,15 @@ class ARGUI:
             view_matrix = self.get_view_matrix(rvec, tvec)
             self.draw_model(model, view_matrix, scale, x, z, -y - cube_size / 2, -90, 0, 0)
 
+    def change_language(self):
+        if self.language == 0:
+            self.language = 1
+        else:
+            self.language = 0
+        labels.change_language(self.language)
+        self.quiz_01.change_labels(labels.txt[0], labels.txt[1], labels.txt[2], labels.txt[3])
+        self.quiz_02.change_labels(labels.txt[4], labels.txt[5], labels.txt[6], labels.txt[7])
+
     def joystick(self):
         # y, x, _, a, b = glfw.get_joystick_axes(glfw.JOYSTICK_1)[0][0:5]
         # # print([x,y,a,b])
@@ -520,6 +547,9 @@ class ARGUI:
 
         elif key == glfw.KEY_C and action == glfw.PRESS:
             self.fork = not self.fork
+
+        elif key == glfw.KEY_V and action == glfw.PRESS:
+            self.change_language()
 
         elif key == glfw.KEY_K and action == glfw.PRESS:
             self.fire = True
