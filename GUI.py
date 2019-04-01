@@ -118,7 +118,8 @@ labels = Labels()
 class StreamCapture:
 
     def __init__(self):
-        self.cap = cv2.VideoCapture(0)
+        # self.cap = cv2.VideoCapture(0)
+        self.cap = cv2.VideoCapture('tcpclientsrc host=mechros2.local port=8080  ! gdpdepay !  rtph264depay ! avdec_h264 ! videoconvert ! appsink sync=false', cv2.CAP_GSTREAMER)
 
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
         # self.cap.set(cv2.CAP_PROP_FPS, 60)
@@ -560,7 +561,11 @@ class ARGUI:
         glPopMatrix()
 
         # UPRAVIT #
+<<<<<<< 83c26254bf3ef924e2ccb8f9825410eecfed0e57
         self.HUD_minimap_position = np.array([2, -1]) * self.HUD_minimap_resolution * self.win_width / 1920
+=======
+        # self.
+>>>>>>> Minor modify
 
         ###########
 
@@ -766,7 +771,7 @@ class ARGUI:
         glfw.window_hint(glfw.SAMPLES, 4)
         self.main_window = glfw.create_window(WIDTH, HEIGHT, "AR - GUI", None, None)
         glfw.set_window_pos(self.main_window, 200, 100)
-        glfw.set_window_aspect_ratio(self.main_window, 16, 9)
+        # glfw.set_window_aspect_ratio(self.main_window, 16, 9)
         glfw.set_window_size_callback(self.main_window, self.window_resize)
 
         glfw.make_context_current(self.main_window)
