@@ -560,14 +560,8 @@ class ARGUI:
         modelview = glGetDouble(GL_MODELVIEW_MATRIX)
         glPopMatrix()
 
-        # UPRAVIT #
-<<<<<<< 83c26254bf3ef924e2ccb8f9825410eecfed0e57
         self.HUD_minimap_position = np.array([2, -1]) * self.HUD_minimap_resolution * self.win_width / 1920
-=======
-        # self.
->>>>>>> Minor modify
 
-        ###########
 
         self.draw_picture(self.HUD_bg, modelview, self.win_width/2, self.win_height/2, 0, self.win_width/1920, 0)
         self.draw_picture(self.HUD_minimap, modelview, round(143/1920 * self.win_width), round(151/1080 * self.win_height), 0, self.win_width / 1920, 0)
