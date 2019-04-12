@@ -134,7 +134,7 @@ class CreateFont:
     def get_text_size(self, string):
         return self.font.getsize(string)
 
-    def glPrint(self, x, y, z, string, viewmatrix, HUD):
+    def glPrint(self, x, y, z, string, viewmatrix, HUD, scale=1):
         """
         # ///Much like Nehe's glPrint function, but modified to work
         # ///with freetype fonts.
@@ -187,6 +187,7 @@ class CreateFont:
             glLoadIdentity()
             glLoadMatrixd(modelview_matrix)
             glTranslatef(x, y - h * i, z)
+            glScale(scale, scale, scale)
             # glMultMatrixf(modelview_matrix)
             # //  The commented out raster position stuff can be useful if you need to
             # //  know the length of the text that you are creating.

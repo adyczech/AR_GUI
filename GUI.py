@@ -32,7 +32,7 @@ nasa_font_42_data = pickle.load(open(nasa_font_42, "rb"))
 MARKER_SIZE = 140
 
 ASTRONAUT_ID = 4
-QUIZ_01_ID = 5
+QUIZ_01_ID = 8
 QUIZ_02_ID = 6
 VIDEO_01_ID = 7
 
@@ -46,7 +46,7 @@ with np.load('src/camCal_1280x720_MS.npz') as X:
     mtx, dist, _, _ = [X[i] for i in ('mtx', 'dist', 'rvecs', 'tvecs')]
 
 # Marker parameters
-dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50)
 detector_params = cv2.aruco.DetectorParameters_create()
 detector_params.cornerRefinementMethod = 1
 detector_params.adaptiveThreshWinSizeStep = 5
@@ -86,7 +86,8 @@ class StreamCapture:
         while True:
             ret, frame = self.cap.read()
             if ret:
-                self.current_frame = np.fliplr(frame)
+                # self.current_frame = np.fliplr(frame)
+                self.current_frame = frame
 
     def get_current_frame(self):
         return self.current_frame
@@ -171,8 +172,8 @@ class ARGUI:
         self.video_01 = ARVideo('content/video/mars.mp4', 'content/video/mars.wav')
 
         # Load quizzes
-        self.quiz_01 = ARQuiz(self, labels.txt[0], labels.txt[1], labels.txt[2], labels.txt[3], 2)
-        self.quiz_02 = ARQuiz(self, labels.txt[4], labels.txt[5], labels.txt[6], labels.txt[7], 1)
+        self.quiz_01 = ARQuiz(self, labels.txt[0], labels.txt[1], labels.txt[2], labels.txt[3], 2, 0.4)
+        self.quiz_02 = ARQuiz(self, labels.txt[4], labels.txt[5], labels.txt[6], labels.txt[7], 1, 0.4)
 
         # Assign texture
         self.texture_background = glGenTextures(1)  # generate texture names

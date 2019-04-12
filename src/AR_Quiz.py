@@ -18,7 +18,7 @@ class AnswerField:
 
 class ARQuiz:
 
-    def __init__(self, parent, question, answer1, answer2, answer3, correct_answer):
+    def __init__(self, parent, question, answer1, answer2, answer3, correct_answer, scale):
         self.parent = parent
 
         self.correct_answer = correct_answer
@@ -32,6 +32,8 @@ class ARQuiz:
         self.answer_2 = answer2.replace('\\n', '\n').replace('\\t', '\t')
         self.answer_3 = answer3.replace('\\n', '\n').replace('\\t', '\t')
 
+        self.scale = scale
+
         if "\n" in self.question:
             self.question_realign = True
         else:
@@ -44,21 +46,21 @@ class ARQuiz:
         self.font = self.parent.nasa_font_12
 
     def draw_quiz(self, view_matrix):
-        self.question_field.set_modelview_matrix(view_matrix, 0, self.answer_field_1.rg.iy + self.question_field.iy/2, 0)
+        self.question_field.set_modelview_matrix(view_matrix, 0, (self.answer_field_1.rg.iy + self.question_field.iy/2)*self.scale, 0, self.scale)
         self.question_field.draw()
 
-        self.draw_picture(self.answer_field_1, view_matrix, 0, self.answer_field_1.rg.iy / 2, 0, hitable=True, index=1)
-        self.draw_picture(self.answer_field_2, view_matrix, 0, -self.answer_field_2.rg.iy / 2, 0, hitable=True, index=2)
-        self.draw_picture(self.answer_field_3, view_matrix, 0, -1.5 * self.answer_field_3.rg.iy, 0, hitable=True, index=3)
+        self.draw_picture(self.answer_field_1, view_matrix, 0, (self.answer_field_1.rg.iy / 2)*self.scale, 0, self.scale, hitable=True, index=1)
+        self.draw_picture(self.answer_field_2, view_matrix, 0, (-self.answer_field_2.rg.iy / 2)*self.scale, 0, self.scale, hitable=True, index=2)
+        self.draw_picture(self.answer_field_3, view_matrix, 0, (-1.5 * self.answer_field_3.rg.iy)*self.scale, 0, self.scale, hitable=True, index=3)
 
         if self.question_realign:
-            CreateFont.glPrint(self.font, -425, self.answer_field_1.rg.iy + self.question_field.iy/2 + 18, 5, self.question, view_matrix, False)
+            CreateFont.glPrint(self.font, -425*self.scale, (self.answer_field_1.rg.iy + self.question_field.iy/2 + 18)*self.scale, 5, self.question, view_matrix, False, self.scale)
         else:
-            CreateFont.glPrint(self.font, -475, self.answer_field_1.rg.iy + self.question_field.iy / 2 - 18, 5,
-                               self.question, view_matrix, False)
-        CreateFont.glPrint(self.font, -335, self.answer_field_1.rg.iy / 2 - 18, 5, self.answer_1, view_matrix, False)
-        CreateFont.glPrint(self.font, -335, -self.answer_field_1.rg.iy / 2 - 18, 5, self.answer_2, view_matrix, False)
-        CreateFont.glPrint(self.font, -335, -1.5 * self.answer_field_1.rg.iy - 18, 5, self.answer_3, view_matrix, False)
+            CreateFont.glPrint(self.font, -475*self.scale, (self.answer_field_1.rg.iy + self.question_field.iy / 2 - 18)*self.scale, 5,
+                               self.question, view_matrix, False, self.scale)
+        CreateFont.glPrint(self.font, -335*self.scale, (self.answer_field_1.rg.iy / 2 - 18)*self.scale, 5, self.answer_1, view_matrix, False, self.scale)
+        CreateFont.glPrint(self.font, -335*self.scale, (-self.answer_field_1.rg.iy / 2 - 18)*self.scale, 5, self.answer_2, view_matrix, False, self.scale)
+        CreateFont.glPrint(self.font, -335*self.scale, (-1.5 * self.answer_field_1.rg.iy - 18)*self.scale, 5, self.answer_3, view_matrix, False, self.scale)
 
     def collision_detection(self, BB, model_mat, scale):
         ray_orig = np.array([[0], [0], [0]])
