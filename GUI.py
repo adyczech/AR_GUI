@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import glfw
@@ -34,9 +37,9 @@ WIDTH = 1280
 HEIGHT = 720
 
 # Font
-nasa_font_12 = "src/Nasalization_Regular_12.pickle"
+nasa_font_12 = "/home/marz1/catkin_ws/src/AR_GUI/src/Nasalization_Regular_12.pickle"
 nasa_font_12_data = pickle.load(open(nasa_font_12, "rb"))
-nasa_font_42 = "src/Nasalization_Bold_42.pickle"
+nasa_font_42 = "/home/marz1/catkin_ws/src/AR_GUI/src/Nasalization_Bold_42.pickle"
 nasa_font_42_data = pickle.load(open(nasa_font_42, "rb"))
 
 # Markers
@@ -64,7 +67,7 @@ R_O_ROS_marker = np.array([[  0.0,  1.0,   0.0],
  [  1.0,   0.0,   0.0]])
 
 # Load camera matrix and distortion coefficients
-with np.load('src/camCal_1280x720_MS.npz') as X:
+with np.load('/home/marz1/catkin_ws/src/AR_GUI/src/camCal_1280x720_MS.npz') as X:
     mtx, dist, _, _ = [X[i] for i in ('mtx', 'dist', 'rvecs', 'tvecs')]
 
 # Marker parameters
@@ -118,16 +121,16 @@ labels = Labels()
 class StreamCapture:
 
     def __init__(self):
-        # self.cap = cv2.VideoCapture(0)
-        self.cap = cv2.VideoCapture('tcpclientsrc host=mechros2.local port=8080  ! gdpdepay !  rtph264depay ! avdec_h264 ! videoconvert ! appsink sync=false', cv2.CAP_GSTREAMER)
-
-        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+        #self.cap = cv2.VideoCapture(0)
+        #self.cap = cv2.VideoCapture('tcpclientsrc host=192.168.0.10 port=8080  ! gdpdepay !  rtph264depay ! avdec_h264 ! videoconvert ! appsink sync=false', cv2.CAP_GSTREAMER)
+        self.cap = cv2.VideoCapture('tcp://192.168.0.10:8080')
+        #self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
         # self.cap.set(cv2.CAP_PROP_FPS, 60)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
-        self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
-        self.cap.set(cv2.CAP_PROP_FOCUS, 0)
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        #self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
+        #self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
+        #self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+        #self.cap.set(cv2.CAP_PROP_FOCUS, 0)
+        #self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         # self.cap.set(cv2.CAP_PROP_SETTINGS, 1)
         if not self.cap.isOpened():
             print("Cannot open stream")
@@ -142,8 +145,8 @@ class StreamCapture:
         while True:
             ret, frame = self.cap.read()
             if ret:
-                # self.current_frame = np.fliplr(frame)
-                self.current_frame = frame
+                self.current_frame = np.fliplr(np.flipud(frame))
+                #self.current_frame = frame
                 self.time = rospy.Time.now()
 
     def get_current_frame(self):
@@ -174,8 +177,7 @@ class ARGUI:
 
         self.lights = False
         self.fork = False
-        self.voltage = 0
-
+        
         self.HUD_minimap_position = np.array([0, 0])
         self.HUD_minimap_rotation = 90
         self.HUD_minimap_resolution = 39.2857142  # [px/m] 44px/1.12m
@@ -206,11 +208,13 @@ class ARGUI:
         odom_subscriber = rospy.Subscriber(odom_topic, Odometry, self.odom_cb)
         volt_subscriber = rospy.Subscriber(volt_topic, Int8, self.volt_cb)
 
-        # Init Pose and velocity info
-        self.x = 0
-        self.y = 0
+        # Init Pose, velocity and voltage info
+        self.robot_x = 0
+        self.robot_y = 0
         self.velocity = 0
         self.yaw = 0
+        self.voltage = 0
+        self.voltage_buffer = np.zeros((1,10))
 
     def init_gl(self):
         print("init")
@@ -250,8 +254,8 @@ class ARGUI:
         self.video_01 = ARVideo('content/video/mars.mp4', 'content/video/mars.wav')
 
         # Load quizzes
-        self.quiz_01 = ARQuiz(self, labels.txt[0], labels.txt[1], labels.txt[2], labels.txt[3], 2)
-        self.quiz_02 = ARQuiz(self, labels.txt[4], labels.txt[5], labels.txt[6], labels.txt[7], 1)
+        self.quiz_01 = ARQuiz(self, labels.txt[0], labels.txt[1], labels.txt[2], labels.txt[3], 2, y=-100, scale=0.4)
+        self.quiz_02 = ARQuiz(self, labels.txt[4], labels.txt[5], labels.txt[6], labels.txt[7], 1, y=-100, scale=0.4)
 
         # Assign texture
         self.texture_background = glGenTextures(1)  # generate texture names
@@ -263,7 +267,7 @@ class ARGUI:
         while not glfw.window_should_close(self.main_window):
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-            self.image, time = self.stream.get_current_frame()
+            self.image, time_r = self.stream.get_current_frame()
             self.draw_background(self.image)
 
             ids, rvecs, tvecs, markerIds, markerCorners, my_rvecs, my_tvecs = self.find_marker(self.image)
@@ -271,9 +275,9 @@ class ARGUI:
             if len(markerCorners) > 0:
                 # Publish pose estimates to ROS network
                 aruco_MarkerList = MarkerList()
-                aruco_MarkerList.header.stamp = time
+                aruco_MarkerList.header.stamp = time_r
                 aruco_MarkerList.header.frame_id = self.frame_id
-                if markerIds != None:
+                if not isinstance(markerIds, type(None)):
                     for i in range(markerIds.size):
 
                         # Calculate surface area in pixels
@@ -309,7 +313,7 @@ class ARGUI:
                         aruco_Marker.pose.position.z = -my_tvecs[i,0,1]
 
                         ## For compatibility with gazebo
-                        aruco_Marker.header.stamp = time
+                        aruco_Marker.header.stamp = time_r
 
                         # All coordinates are in marker frame
                         aruco_MarkerList.markers.append(aruco_Marker)
@@ -560,8 +564,7 @@ class ARGUI:
         modelview = glGetDouble(GL_MODELVIEW_MATRIX)
         glPopMatrix()
 
-        self.HUD_minimap_position = np.array([2, -1]) * self.HUD_minimap_resolution * self.win_width / 1920
-
+        self.HUD_minimap_position = np.array([self.robot_x, self.robot_y]) * self.HUD_minimap_resolution * self.win_width / 1920
 
         self.draw_picture(self.HUD_bg, modelview, self.win_width/2, self.win_height/2, 0, self.win_width/1920, 0)
         self.draw_picture(self.HUD_minimap, modelview, round(143/1920 * self.win_width), round(151/1080 * self.win_height), 0, self.win_width / 1920, 0)
@@ -580,9 +583,9 @@ class ARGUI:
 
         # Draw HUD texts
         glColor3fv(self.font_color)
-        CreateFont.glPrint(self.nasa_font_12, round(0.3375*self.win_width), round(0.9343*self.win_height), 0, "3.6 V", None, True)
-        CreateFont.glPrint(self.nasa_font_42, round(1671/1920 * self.win_width), round(128 / 1080 * self.win_height), 0, "20", None, True)
-        CreateFont.glPrint(self.nasa_font_12, round(960 / 1920 * self.win_width), round(1009 / 1080 * self.win_height), 0, "115 °", None, True)
+        CreateFont.glPrint(self.nasa_font_12, round(0.3375*self.win_width), round(0.9343*self.win_height), 0, str(self.voltage) + " V", None, True)
+        CreateFont.glPrint(self.nasa_font_42, round(1671/1920 * self.win_width), round(128 / 1080 * self.win_height), 0, str(round(self.velocity)), None, True)
+        CreateFont.glPrint(self.nasa_font_12, round(960 / 1920 * self.win_width), round(1009 / 1080 * self.win_height), 0, str(round(self.yaw)) + " °", None, True)
         glColor3f(1.0, 1.0, 1.0)
 
         # Draw cursor
@@ -725,14 +728,16 @@ class ARGUI:
         return yaw
 
     def odom_cb(self,odom):
-        self.x = odom.pose.pose.position.x
-        self.y = odom.pose.pose.position.y
+        self.robot_x = odom.pose.pose.position.x
+        self.robot_y = odom.pose.pose.position.y
         self.yaw = self.getYaw(odom.pose.pose.orientation)
         self.velocity = round(odom.twist.twist.linear.x*100)
 
     def volt_cb(self,volt):
         voltage = (volt.data + 335.0)/100
-        self.voltage = voltage
+        self.voltage_buffer[:-1] = voltage
+        self.voltage = np.sum(self.voltage_buffer)/len(self.voltage_buffer)
+        self.voltage_buffer = np.roll(self.voltage_buffer, 1)
 
     def rotationMatrixToEulerAngles(self, M, cy_thresh=None):
         # cy_thresh : None or scalar, optional
@@ -765,7 +770,7 @@ class ARGUI:
         glfw.window_hint(glfw.SAMPLES, 4)
         self.main_window = glfw.create_window(WIDTH, HEIGHT, "AR - GUI", None, None)
         glfw.set_window_pos(self.main_window, 200, 100)
-        # glfw.set_window_aspect_ratio(self.main_window, 16, 9)
+        #glfw.set_window_aspect_ratio(self.main_window, 16, 9)
         glfw.set_window_size_callback(self.main_window, self.window_resize)
 
         glfw.make_context_current(self.main_window)
