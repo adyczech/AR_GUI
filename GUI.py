@@ -11,11 +11,14 @@ import time
 from operator import itemgetter
 import pickle
 from pygame import mixer
-from src.objloader_V2 import *
+
 from src.Labels import *
 from src.AR_Picture import *
 from src.AR_Quiz import *
+from src.AR_Model import *
+from src.AR_Cube import *
 from src.AR_Video import *
+from src.HUD_info import *
 from src.CreateFont import *
 
 WIDTH = 1280
@@ -31,10 +34,11 @@ nasa_font_42_data = pickle.load(open(nasa_font_42, "rb"))
 # MARKER_SIZE = 80
 MARKER_SIZE = 140
 
-ASTRONAUT_ID = 4
-QUIZ_01_ID = 8
-QUIZ_02_ID = 6
-VIDEO_01_ID = 7
+ASTRONAUT_ID = 30
+QUIZ_01_ID = 1
+QUIZ_02_ID = 2
+VIDEO_01_ID = 3
+CUBE_IDS = [6, 7, 8, 9, 10, 11]
 
 INVERSE_MATRIX = np.array([[1.0, 1.0, 1.0, 1.0],
                            [-1.0, -1.0, -1.0, -1.0],
@@ -46,6 +50,7 @@ with np.load('src/camCal_1280x720_MS.npz') as X:
     mtx, dist, _, _ = [X[i] for i in ('mtx', 'dist', 'rvecs', 'tvecs')]
 
 # Marker parameters
+# dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_50)
 dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50)
 detector_params = cv2.aruco.DetectorParameters_create()
 detector_params.cornerRefinementMethod = 1
@@ -127,6 +132,10 @@ class ARGUI:
         self.cross_hair_right = False
         self.cross_hair_left = False
 
+        self.show_info = False
+        self.info_timeout = 2
+        self.info_showtime = time.time()
+
         self.fire = False
         self.queue_of_death = []  # [object, dst]
 
@@ -156,7 +165,9 @@ class ARGUI:
         # Load 3D models
         # self.astronaut = OBJ('content/model/astronaut5/astronaut.obj')
         # s elf.astronaut = OBJ('content/model/med_astronaut/med_astronaut.obj')
-        self.astronaut = OBJ('content/model/humanoid-robot/source/robot.obj')
+        self.astronaut = ARModel('content/model/humanoid-robot/source/robot.obj', True, self)
+
+        self.robo_cube = ARCube('content/model/humanoid-robot/source/robot.obj', 98, CUBE_IDS)
 
         # Load HUD images
         self.HUD_bg = ARPicture('content/hud/HUD_background.png', cv2.IMREAD_UNCHANGED)
@@ -174,6 +185,9 @@ class ARGUI:
         # Load quizzes
         self.quiz_01 = ARQuiz(self, labels.txt[0], labels.txt[1], labels.txt[2], labels.txt[3], 2, 0.4)
         self.quiz_02 = ARQuiz(self, labels.txt[4], labels.txt[5], labels.txt[6], labels.txt[7], 1, 0.4)
+
+        # Load Info
+        self.HUD_info_intro = HUDInfo(self, labels.txt[8])
 
         # Assign texture
         self.texture_background = glGenTextures(1)  # generate texture names
@@ -297,7 +311,7 @@ class ARGUI:
             for i in range(0, np.size(ids)):
                 if ASTRONAUT_ID == ids[i]:
                     view_matrix = self.get_view_matrix(rvecs[i], tvecs[i])
-                    self.draw_model(self.astronaut, view_matrix, 50, 0, 0, 0, 0, 0, 0)
+                    self.astronaut.draw_model(view_matrix, 0, 0, 0, 50, 0, 0, 0)
                 elif QUIZ_01_ID == ids[i]:
                     view_matrix = self.get_view_matrix(rvecs[i], tvecs[i])
                     self.quiz_01.draw_quiz(view_matrix)
@@ -307,11 +321,16 @@ class ARGUI:
                 elif VIDEO_01_ID == ids[i]:
                     view_matrix = self.get_view_matrix(rvecs[i], tvecs[i])
                     self.video_01.draw_video(view_matrix, 640, 480)
+                elif np.size(np.intersect1d(CUBE_IDS, ids[i])):
+                    view_matrix = self.get_view_matrix(rvecs[i], tvecs[i])
+                    self.robo_cube.draw_cube_model(view_matrix,ids[i],0, 0, 0, 40, 0, 0, 0)
                 elif 0 == ids[i]:
                     view_matrix = self.get_view_matrix(rvecs[i], tvecs[i])
                     glColor3fv(self.font_color)
                     CreateFont.glPrint(self.nasa_font_12, 0, 0, -10, "3.6 V", view_matrix, False)
                     glColor3f(1.0, 1.0, 1.0)
+
+        self.robo_cube.drawn = False
 
     def get_view_matrix(self, rvecs, tvecs):
         model_rvecs = rvecs
@@ -325,27 +344,6 @@ class ARGUI:
 
         view_matrix = np.transpose(view_matrix * INVERSE_MATRIX)
         return view_matrix
-
-    def draw_model(self, model, view_matrix, scale, x, y, z, rx, ry, rz):
-        glMatrixMode(GL_MODELVIEW)
-        glLoadIdentity()
-
-        glPushMatrix()
-        glLoadMatrixd(view_matrix)
-
-        glTranslatef(x, y, z)
-        glScale(scale, scale, scale)  # Scale model
-
-        # Rotate model
-        glRotatef(rx, 1, 0, 0)
-        glRotatef(ry, 0, 1, 0)
-        glRotatef(rz, 0, 0, 1)
-
-        glEnable(GL_TEXTURE_2D)
-        glCallList(model.gl_list)
-        glDisable(GL_TEXTURE_2D)
-        glColor3f(1, 1, 1)
-        glPopMatrix()
 
     def draw_picture(self, picture, view_matrix, x, y, z, scale=1.0, rz=0):
         glMatrixMode(GL_MODELVIEW)
@@ -451,6 +449,13 @@ class ARGUI:
         CreateFont.glPrint(self.nasa_font_12, round(960 / 1920 * self.win_width), round(1009 / 1080 * self.win_height), 0, "115 °", None, True)
         glColor3f(1.0, 1.0, 1.0)
 
+        # Draw info
+        if self.show_info:
+            if time.time() - self.info_showtime <= self.info_timeout:
+                self.HUD_info_intro.draw_info(modelview)
+            else:
+                self.show_info = False
+
         # Draw cursor
         self.draw_picture(self.HUD_cursor, modelview, self.cross_hair_x, self.cross_hair_y, 0, self.win_width / 1920, 0)
 
@@ -491,26 +496,6 @@ class ARGUI:
             glViewport(0, 0, width, height)
             gluPerspective(fovy, aspect, 0.1, 500.0 * MARKER_SIZE)
 
-    def draw_cube_model(self, cube_ids, cube_size, model, id, rvec, tvec, scale, x, y, z, rx, ry, rz):
-        if cube_ids[0] == id:  # 6
-            view_matrix = self.get_view_matrix(rvec, tvec)
-            self.draw_model(model, view_matrix, scale, x, y, -cube_size / 2 + z, 0, 0, 0)
-        elif cube_ids[1] == id:  # 7
-            view_matrix = self.get_view_matrix(rvec, tvec)
-            self.draw_model(model, view_matrix, scale, x, y, -cube_size / 2, 0, 90, 0)
-        elif cube_ids[2] == id:  # 8
-            view_matrix = self.get_view_matrix(rvec, tvec)
-            self.draw_model(model, view_matrix, scale, x, y, -cube_size / 2, 0, 180, 0)
-        elif cube_ids[3] == id:  # 9
-            view_matrix = self.get_view_matrix(rvec, tvec)
-            self.draw_model(model, view_matrix, scale, x, y, -cube_size / 2, 0, 270, 0)
-        elif cube_ids[4] == id:  # 10
-            view_matrix = self.get_view_matrix(rvec, tvec)
-            self.draw_model(model, view_matrix, scale, x, -z, y - cube_size / 2, 90, 0, 0)
-        elif cube_ids[5] == id:  # 11
-            view_matrix = self.get_view_matrix(rvec, tvec)
-            self.draw_model(model, view_matrix, scale, x, z, -y - cube_size / 2, -90, 0, 0)
-
     def change_language(self):
         if self.language == 0:
             self.language = 1
@@ -519,6 +504,7 @@ class ARGUI:
         labels.change_language(self.language)
         self.quiz_01.change_labels(labels.txt[0], labels.txt[1], labels.txt[2], labels.txt[3])
         self.quiz_02.change_labels(labels.txt[4], labels.txt[5], labels.txt[6], labels.txt[7])
+        self.HUD_info_intro.change_labels(labels.txt[8])
 
     def joystick(self):
         # y, x, _, a, b = glfw.get_joystick_axes(glfw.JOYSTICK_1)[0][0:5]
@@ -554,6 +540,10 @@ class ARGUI:
 
         elif key == glfw.KEY_K and action == glfw.PRESS:
             self.fire = True
+
+        elif key == glfw.KEY_B and action == glfw.PRESS:
+            self.show_info = True
+            self.info_showtime = time.time()
 
         elif key == glfw.KEY_U and action == glfw.PRESS:
             self.cross_hair_up = True
